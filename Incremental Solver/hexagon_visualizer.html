@@ -1,0 +1,183 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexagon Grid Visualizer (Final Corrected Version)</title>
+    <style>
+        body {
+            font-family: monospace; display: flex; flex-direction: column;
+            align-items: center; background-color: #1a202c; color: #e2e8f0; margin: 2rem;
+        }
+        #main-container { display: flex; flex-direction: column; align-items: center; gap: 2rem; }
+        #board-container { display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .column { display: flex; flex-direction: column; gap: 8px; }
+        .tile {
+            width: 40px; height: 40px; font-size: 1rem;
+            background-color: #4a5568; border: 2px solid #718096; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-weight: bold;
+            cursor: pointer; transition: all 0.2s ease-in-out; user-select: none;
+        }
+        .tile:hover { border-color: #a0aec0; transform: scale(1.05); }
+        .selected { background-color: #4299e1; border-color: #90cdf4; color: #fff; }
+        .affected { background-color: #f56565; border-color: #feb2b2; color: #fff; }
+
+        #test-report-container {
+            width: 100%; max-width: 800px; background-color: #2d3748;
+            border: 1px solid #4a5568; border-radius: 8px; padding: 1rem;
+        }
+        .test-case { border-bottom: 1px solid #4a5568; padding-bottom: 1rem; margin-bottom: 1rem; }
+        .test-case:last-child { border-bottom: none; margin-bottom: 0; }
+        .details { white-space: pre-wrap; word-wrap: break-word; margin-top: 0.5rem; font-size: 0.85rem; }
+        .pass { color: #68d391; font-weight: bold; }
+        .fail { color: #fc8181; font-weight: bold; }
+
+        .comparison-grid { display: flex; justify-content: space-around; gap: 2rem; margin-top: 1rem; }
+        .mini-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 2px; width: 120px; height: 120px;
+        }
+        .mini-tile {
+            width: 100%; height: 100%; border-radius: 50%; background-color: #4a5568;
+        }
+        .mini-tile.empty { background-color: transparent; }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <h1>Hexagon Grid Visualizer</h1>
+        <div id="board-container"></div>
+        <div id="test-report-container">
+            <h2>Automated Test Results</h2>
+            <div id="test-report"></div>
+        </div>
+    </div>
+    <script>
+        
+        const ADJACENCY_MAP = {"3": [2, 3, 7, 8], "25": [18, 19, 24, 25, 26, 30, 31], "19": [12, 13, 18, 19, 20, 25, 26], "6": [1, 2, 5, 6, 7, 11, 12], "27": [20, 21, 26, 27, 32], "36": [31, 32, 35, 36], "8": [3, 7, 8, 13, 14], "9": [4, 9, 10, 15, 16], "11": [5, 6, 10, 11, 12, 17, 18], "0": [0, 1, 4, 5], "33": [28, 29, 33, 34], "29": [23, 24, 28, 29, 30, 33, 34], "16": [9, 10, 15, 16, 17, 22, 23], "13": [7, 8, 12, 13, 14, 19, 20], "2": [1, 2, 3, 6, 7], "31": [25, 26, 30, 31, 32, 35, 36], "18": [11, 12, 17, 18, 19, 24, 25], "35": [30, 31, 34, 35, 36], "20": [13, 14, 19, 20, 21, 26, 27], "24": [17, 18, 23, 24, 25, 29, 30], "10": [4, 5, 9, 10, 11, 16, 17], "22": [15, 16, 22, 23, 28], "5": [0, 1, 4, 5, 6, 10, 11], "28": [22, 23, 28, 29, 33], "12": [6, 7, 11, 12, 13, 18, 19], "7": [2, 3, 6, 7, 8, 12, 13], "30": [24, 25, 29, 30, 31, 34, 35], "14": [8, 13, 14, 20, 21], "26": [19, 20, 25, 26, 27, 31, 32], "32": [26, 27, 31, 32, 36], "4": [0, 4, 5, 9, 10], "15": [9, 15, 16, 22], "1": [0, 1, 2, 5, 6], "23": [16, 17, 22, 23, 24, 28, 29], "17": [10, 11, 16, 17, 18, 23, 24], "34": [29, 30, 33, 34, 35], "21": [14, 20, 21, 27]};
+        const RENDER_MAP = {"0": [0, 0], "1": [0, 1], "2": [0, 2], "3": [0, 3], "4": [1, 0], "5": [1, 1], "6": [1, 2], "7": [1, 3], "8": [1, 4], "9": [2, 0], "10": [2, 1], "11": [2, 2], "12": [2, 3], "13": [2, 4], "14": [2, 5], "15": [3, 0], "16": [3, 1], "17": [3, 2], "18": [3, 3], "19": [3, 4], "20": [3, 5], "21": [3, 6], "22": [4, 0], "23": [4, 1], "24": [4, 2], "25": [4, 3], "26": [4, 4], "27": [4, 5], "28": [5, 0], "29": [5, 1], "30": [5, 2], "31": [5, 3], "32": [5, 4], "33": [6, 0], "34": [6, 1], "35": [6, 2], "36": [6, 3]};
+        const NUM_COLS = 7;
+        const NUM_TILES = Object.keys(RENDER_MAP).length;
+
+        // --- Board Rendering ---
+        const boardContainer = document.getElementById('board-container');
+        const columns = Array.from({ length: NUM_COLS }, () => {
+            const colDiv = document.createElement('div');
+            colDiv.className = 'column';
+            boardContainer.appendChild(colDiv);
+            return colDiv;
+        });
+        const tiles = {};
+        for (let i = 0; i < NUM_TILES; i++) {
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            tile.textContent = i;
+            tile.dataset.index = i;
+            tiles[i] = tile;
+            const [col_idx, row_idx] = RENDER_MAP[i];
+            columns[col_idx].appendChild(tile);
+            tile.addEventListener('click', () => handleTileClick(i));
+        }
+        function handleTileClick(clickedIndex) {
+            Object.values(tiles).forEach(t => t.classList.remove('selected', 'affected'));
+            const affectedTiles = ADJACENCY_MAP[clickedIndex];
+            if (!affectedTiles) return;
+            affectedTiles.forEach(index => {
+                const tileElement = tiles[index];
+                if (tileElement) {
+                    tileElement.classList.add(index == clickedIndex ? 'selected' : 'affected');
+                }
+            });
+        }
+
+        // --- Automated Testing ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const testCases = {
+                18: { expected: [11, 12, 17, 18, 19, 24, 25] },
+                32: { expected: [26, 27, 31, 32, 36] },
+                21: { expected: [14, 20, 21, 27] }
+            };
+
+            const reportElement = document.getElementById('test-report');
+            let fullReport = '';
+
+            for (const tileIndexStr in testCases) {
+                const testCase = testCases[tileIndexStr];
+                const expected = testCase.expected;
+                const tileIndex = parseInt(tileIndexStr, 10);
+                const actual = ADJACENCY_MAP[tileIndex] || [];
+
+                expected.sort((a,b)=>a-b);
+                actual.sort((a,b)=>a-b);
+
+                const missing = expected.filter(id => !actual.includes(id));
+                const extra = actual.filter(id => !expected.includes(id));
+                const isPass = missing.length === 0 && extra.length === 0;
+
+                fullReport += '<div class="test-case">';
+                fullReport += `<h3>TESTING TILE ${tileIndex}: ` + (isPass ? '<span class=pass>PASS</span>' : '<span class=fail>FAIL</span>') + '</h3>';
+                fullReport += '<div class="comparison-grid">';
+
+                // Create mini-visualization for expected and actual
+                fullReport += '<div><h4>Expected</h4>' + createMiniGrid(tileIndex, expected) + '</div>';
+                fullReport += '<div><h4>Actual</h4>' + createMiniGrid(tileIndex, actual) + '</div>';
+
+                fullReport += '</div>'; // end comparison-grid
+
+                if (!isPass) {
+                    fullReport += '<div class="details">';
+                    fullReport += `  EXPECTED: ${JSON.stringify(expected)}\n`;
+                    fullReport += `  ACTUAL  : ${JSON.stringify(actual)}\n`;
+                    if(missing.length > 0) { fullReport += `  <span class=fail>MISSING : ${JSON.stringify(missing)}</span>\n`; }
+                    if(extra.length > 0)   { fullReport += `  <span class=fail>EXTRA   : ${JSON.stringify(extra)}</span>\n`; }
+                    fullReport += '</div>';
+                }
+                fullReport += '</div>'; // end test-case
+            }
+            reportElement.innerHTML = fullReport;
+
+            handleTileClick(Object.keys(testCases)[0]);
+        });
+
+        function createMiniGrid(centerIndex, affectedIndices) {
+            let gridHtml = '<div class="mini-grid">';
+            const size = 5; // 5x5 grid around the center
+            const centerOffset = Math.floor(size/2);
+
+            // Find center tile's render position to anchor the mini-grid
+            const [centerCol, centerRow] = RENDER_MAP[centerIndex] || [0,0];
+
+            for (let r_offset = -centerOffset; r_offset <= centerOffset; r_offset++) {
+                for (let c_offset = -centerOffset; c_offset <= centerOffset; c_offset++) {
+                    const targetCol = centerCol + c_offset;
+                    const targetRow = centerRow + r_offset;
+
+                    // Find if a tile exists at this render position
+                    let tileIndex = -1;
+                    for (const [idx, pos] of Object.entries(RENDER_MAP)) {
+                        if (pos[0] === targetCol && pos[1] === targetRow) {
+                            tileIndex = parseInt(idx, 10);
+                            break;
+                        }
+                    }
+
+                    if (tileIndex !== -1) {
+                        let className = 'mini-tile';
+                        if (affectedIndices.includes(tileIndex)) {
+                            className += (tileIndex === centerIndex) ? ' selected' : ' affected';
+                        }
+                        gridHtml += `<div class="${className}"></div>`;
+                    } else {
+                        gridHtml += '<div class="mini-tile empty"></div>';
+                    }
+                }
+            }
+            gridHtml += '</div>';
+            return gridHtml;
+        }
+
+    
+    </script>
+</body>
+</html>
